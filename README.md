@@ -7,8 +7,9 @@ terminal in the same folder), and this plugin tells it what you work on:
   src/main.rs" under them), as long as none of Glut's read rules holds the file back.
 - **Your buffers as Neovim holds them**: Glut reads a loaded buffer, unsaved changes too. It never changes a buffer
   with unsaved changes — save it first.
-- **Glut's questions about edits as Neovim diffs**: where Glut's gate asks before an edit, the change opens in a tab of
-  its own, the file on the left, Glut's change on the right. `:GlutDiffAccept` or `:GlutDiffDeny` answers; Glut's own
+- **Glut's questions about edits as Neovim diffs**: where Glut's gate asks before an edit, the change comes up in a tab of
+  its own, the file on the left, Glut's change on the right — which you may change — and Glut's split beside them,
+  keeping the cursor. `:GlutDiffAccept` or `:GlutDiffDeny` answers; Glut's own
   card in its terminal answers too, and the first answer counts. Accepting writes nothing here: Glut writes the file
   once its gate allows it, and Neovim reads it again.
 - **What is open and what your language servers say**, for Glut's model to ask.

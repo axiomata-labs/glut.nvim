@@ -58,6 +58,13 @@ local function running()
   return state.job and vim.fn.jobwait({ state.job }, 0)[1] == -1
 end
 
+--- Whether Glut runs in this Neovim, and its terminal's buffer.
+function M.running_buffer()
+  if running() and state.buf and vim.api.nvim_buf_is_valid(state.buf) then
+    return state.buf
+  end
+end
+
 --- For a status line (lualine and the like): the flame, lit while Glut runs in this Neovim.
 function M.status()
   return running() and "🔥 Glut" or "Glut"

@@ -108,14 +108,31 @@ local job = post({ jsonrpc = "2.0", id = 3, method = "tools/call", params = { na
 check(vim.wait(3000, function()
   return #vim.api.nvim_list_tabpages() == 2
 end), "Glut's change shows as a diff in a tab of its own")
-check(vim.api.nvim_tabpage_get_number(vim.api.nvim_get_current_tabpage()) == 1,
-  "the diff does not take the focus")
-vim.cmd("tabnext 2")
+check(vim.api.nvim_tabpage_get_number(vim.api.nvim_get_current_tabpage()) == 2
+  and vim.wo.diff and vim.bo.modifiable, "the diff comes to the front, the cursor on its right side")
 vim.cmd("GlutDiffAccept")
 local done = job:wait(3000)
 check(done.stdout:find('\\"accepted\\"', 1, true) ~= nil and #vim.api.nvim_list_tabpages() == 1,
   "accepting answers Glut and closes the tab")
 check(done.stdout:find('\\"text\\"', 1, true) == nil, "an unchanged right side sends no text of its own")
+
+-- Where Glut runs in this Neovim, its terminal stands beside the diff and keeps the cursor.
+state.buf = vim.api.nvim_create_buf(false, true)
+state.job = vim.fn.jobstart({ "sleep", "60" })
+local beside = post({ jsonrpc = "2.0", id = 7, method = "tools/call", params = { name = "openDiff",
+  arguments = { id = "ask-5", path = file, oldText = "a\n", newText = "b\n", title = "a.lua" } } },
+  lock.authToken, false)
+vim.wait(3000, function()
+  return #vim.api.nvim_list_tabpages() == 2
+end)
+local wins = vim.api.nvim_tabpage_list_wins(0)
+check(#wins == 3 and vim.api.nvim_get_current_buf() == state.buf and not vim.wo.diff and vim.wo.winbar == "",
+  "Glut stands beside the diff with the cursor, no side of the diff itself")
+check(call("closeDiff", { id = "ask-5" }).closed and #vim.api.nvim_list_tabpages() == 1
+  and vim.api.nvim_buf_is_valid(state.buf), "its card's answer closes the tab and leaves Glut running")
+beside:wait(3000)
+vim.fn.jobstop(state.job)
+state.job, state.buf = nil, nil
 
 -- The owner's own change on the right side goes with the answer.
 local changed = post({ jsonrpc = "2.0", id = 5, method = "tools/call", params = { name = "openDiff",
@@ -124,7 +141,6 @@ local changed = post({ jsonrpc = "2.0", id = 5, method = "tools/call", params = 
 vim.wait(3000, function()
   return #vim.api.nvim_list_tabpages() == 2
 end)
-vim.cmd("tabnext 2")
 vim.api.nvim_buf_set_lines(vim.api.nvim_get_current_buf(), 0, -1, false, { "local a = 11" })
 vim.cmd("GlutDiffAccept")
 local owners = changed:wait(3000).stdout
@@ -138,7 +154,6 @@ local renamed = post({ jsonrpc = "2.0", id = 6, method = "tools/call", params = 
 vim.wait(3000, function()
   return #vim.api.nvim_list_tabpages() == 2
 end)
-vim.cmd("tabnext 2")
 check(not vim.bo[vim.api.nvim_get_current_buf()].modifiable, "a rename's right side cannot be changed")
 vim.cmd("GlutDiffAccept")
 check(renamed:wait(3000).stdout:find('\\"text\\"', 1, true) == nil, "and its accept carries no text")

@@ -3,9 +3,10 @@
 -- :GlutDiffDeny answers it; closing the tab answers nothing ("closed"). Accepting
 -- writes nothing: Glut writes the file once its gate allows it. The right side
 -- may be changed first: accepting then hands Glut that text, which it writes
--- instead and tells its model about. The tab opens
--- behind the one the owner is in — a diff never takes the focus, so no key meant
--- for something else lands in it — and the owner is told it is there.
+-- instead and tells its model about. The tab comes to the front, as VS Code's
+-- diff does: where Glut runs in this Neovim, its terminal stands beside the diff
+-- and keeps the cursor — no key meant for Glut lands in the diff — and where it
+-- runs elsewhere, the cursor waits on the right side.
 
 local M = {}
 
@@ -79,7 +80,7 @@ function M.open(args, respond, connection)
   local filetype = vim.filetype.match({ filename = args.path }) or ""
   local short = vim.fn.fnamemodify(args.path, ":~:."):gsub("[%c]", " ")
   local old = type(args.oldText) == "string" and args.oldText or ""
-  local before_tab, before_win = vim.api.nvim_get_current_tabpage(), vim.api.nvim_get_current_win()
+  local before_win = vim.api.nvim_get_current_win()
   local mode = vim.api.nvim_get_mode().mode
   vim.cmd("noautocmd tabnew")
   local tab = vim.api.nvim_get_current_tabpage()
@@ -95,15 +96,22 @@ function M.open(args, respond, connection)
   local title = (type(args.title) == "string" and args.title ~= "") and args.title:gsub("[%c]", " ") or short
   local hint = editable and "  ·  change this side if you like" or ""
   vim.wo.winbar = ("Glut: %s%s  ·  :GlutDiffAccept  ·  :GlutDiffDeny"):format(title:gsub("%%", "%%%%"), hint)
-  -- Back where the owner was, as they were.
-  vim.cmd("noautocmd tabnext " .. vim.api.nvim_tabpage_get_number(before_tab))
-  if vim.api.nvim_win_is_valid(before_win) then
-    vim.api.nvim_set_current_win(before_win)
+  local glut = require("glut")
+  local terminal = glut.running_buffer()
+  if terminal then
+    -- Glut beside the diff, where its split stood: the question and the change in one view.
+    local width = math.floor(vim.o.columns * glut.options.split.width)
+    local side = glut.options.split.side == "left" and "topleft" or "botright"
+    vim.cmd(("noautocmd %s vertical %dsplit"):format(side, width))
+    vim.api.nvim_win_set_buf(0, terminal)
+    -- The split took the diff's window options: Glut's window is no side of the diff.
+    vim.cmd("diffoff")
+    vim.wo.winbar = ""
+    if mode:sub(1, 1) == "t" or vim.api.nvim_win_get_buf(before_win) == terminal then
+      vim.cmd("startinsert")
+    end
   end
-  if mode:sub(1, 1) == "t" then
-    vim.cmd("startinsert")
-  end
-  vim.notify(("glut: Glut asks about a change of %s — in tab %d"):format(short, vim.api.nvim_tabpage_get_number(tab)))
+  vim.notify(("glut: Glut asks about a change of %s"):format(short))
   local diff = {
     tab = tab,
     buffers = { left, right },
