@@ -214,6 +214,8 @@ end, 10), "a connection that shows no token is let go")
 silent:close()
 short_stop()
 
+check(glut.status() == "Glut", "the status line's flame is out while no Glut runs here")
+
 glut.stop()
 check(vim.uv.fs_stat(lock and state.lockfile or "") == nil, "the file goes when the editor stops")
 

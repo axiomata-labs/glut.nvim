@@ -58,6 +58,11 @@ local function running()
   return state.job and vim.fn.jobwait({ state.job }, 0)[1] == -1
 end
 
+--- For a status line (lualine and the like): the flame, lit while Glut runs in this Neovim.
+function M.status()
+  return running() and "🔥 Glut" or "Glut"
+end
+
 --- Opens Glut in a split, or shows and hides the one there is.
 function M.toggle()
   local port = M.listen()

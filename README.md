@@ -56,6 +56,13 @@ vim.keymap.set("n", "<leader>Ga", "<cmd>GlutDiffAccept<cr>", { desc = "Accept Gl
 vim.keymap.set("n", "<leader>Gd", "<cmd>GlutDiffDeny<cr>", { desc = "Refuse Glut's change" })
 ```
 
+`require("glut").status()` is Glut for a status line — `🔥 Glut` while it runs here, `Glut` otherwise — and with
+lualine a click opens it:
+
+```lua
+lualine_x = { { function() return require("glut").status() end, on_click = function() vim.cmd("Glut") end } },
+```
+
 ## Options
 
 ```lua
