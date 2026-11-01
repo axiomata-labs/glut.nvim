@@ -185,6 +185,35 @@ vim.fn.bufload(vim.fn.bufnr(folder .. "/.env.local"))
 local env = call("readBuffer", { path = folder .. "/.env" })
 check(env and env.loaded == false, "asking for .env never reads .env.local")
 
+-- A question that waits (a diff) outlasts the idle time; a connection that shows no token is let go soon.
+local short_port, short_stop = require("glut.server").start("feedfeedfeedfeedfeedfeedfeedfeed", function() end, nil,
+  { idle = 300, unproven = 300 })
+local waited
+vim.system({ "curl", "-s", "-m", "2", "-o", "/dev/null", "-w", "%{exitcode}", "-X", "POST",
+  ("http://127.0.0.1:%d/mcp"):format(short_port), "-H", "Authorization: Bearer feedfeedfeedfeedfeedfeedfeedfeed",
+  "-d", '{"jsonrpc":"2.0","id":1,"method":"tools/call"}' }, { text = true }, function(done)
+  waited = done
+end)
+vim.wait(4000, function()
+  return waited ~= nil
+end, 10)
+-- curl gives up at its own limit (28): the editor never closed the connection under the waiting question.
+check(waited and waited.code == 28, "a waiting question outlasts the idle time")
+local silent = vim.uv.new_tcp()
+local ended = false
+silent:connect("127.0.0.1", short_port, function()
+  silent:read_start(function(_, chunk)
+    if not chunk then
+      ended = true
+    end
+  end)
+end)
+check(vim.wait(1500, function()
+  return ended
+end, 10), "a connection that shows no token is let go")
+silent:close()
+short_stop()
+
 glut.stop()
 check(vim.uv.fs_stat(lock and state.lockfile or "") == nil, "the file goes when the editor stops")
 

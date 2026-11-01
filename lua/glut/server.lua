@@ -18,8 +18,10 @@ local MAX_BODY = 8 * 1024 * 1024
 local MAX_HEAD = 16 * 1024
 --- How many connections at once: Glut opens two.
 local MOST_CONNECTIONS = 16
---- How long a connection may say nothing before it is closed, in milliseconds.
+--- How long a connection may say nothing, with no question of its own waiting, before it is closed, in milliseconds.
 local IDLE = 60 * 1000
+--- How long a connection may take to show the token at all: a stranger holds no slot for long.
+local UNPROVEN = 10 * 1000
 
 --- Compares two strings in time that does not depend on where they differ.
 local function same(a, b)
@@ -92,7 +94,8 @@ end
 --- with the right token; `respond(result | nil, error | nil)` may be called
 --- later. `closed(connection)` hears when a connection ends. Returns the port,
 --- and a function that stops the server.
-function M.start(token, handle, closed)
+function M.start(token, handle, closed, times)
+  times = times or { idle = IDLE, unproven = UNPROVEN }
   local server = uv.new_tcp()
   assert(server:bind("127.0.0.1", 0))
   local clients, count, next_id = {}, 0, 0
@@ -114,6 +117,9 @@ function M.start(token, handle, closed)
     clients[client] = true
     local chunks, size = {}, 0
     local request -- the head of the request whose body is still coming
+    -- Questions of this connection still waiting for their answer (a diff waits for the owner): no idleness then.
+    local pending = 0
+    local proven = false
     local timer = uv.new_timer()
     local function close()
       if clients[client] then
@@ -135,7 +141,13 @@ function M.start(token, handle, closed)
     end
     local function idle()
       timer:stop()
-      timer:start(IDLE, 0, close)
+      timer:start(proven and times.idle or times.unproven, 0, function()
+        if pending > 0 then
+          idle()
+        else
+          close()
+        end
+      end)
     end
     idle()
     client:read_start(function(read_err, chunk)
@@ -172,6 +184,10 @@ function M.start(token, handle, closed)
             return close()
           end
           request = head
+          if not proven then
+            proven = true
+            idle()
+          end
           buffer = buffer:sub(head_end + 4)
           chunks, size = { buffer }, #buffer
         end
@@ -193,11 +209,13 @@ function M.start(token, handle, closed)
             return reply(client, 202)
           end
           local answered = false
+          pending = pending + 1
           local function respond(result, failure)
             if answered then
               return
             end
             answered = true
+            pending = pending - 1
             local out = { jsonrpc = "2.0", id = message.id }
             if failure then
               out.error = { code = -32603, message = failure }
