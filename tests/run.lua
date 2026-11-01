@@ -115,6 +115,33 @@ vim.cmd("GlutDiffAccept")
 local done = job:wait(3000)
 check(done.stdout:find('\\"accepted\\"', 1, true) ~= nil and #vim.api.nvim_list_tabpages() == 1,
   "accepting answers Glut and closes the tab")
+check(done.stdout:find('\\"text\\"', 1, true) == nil, "an unchanged right side sends no text of its own")
+
+-- The owner's own change on the right side goes with the answer.
+local changed = post({ jsonrpc = "2.0", id = 5, method = "tools/call", params = { name = "openDiff",
+  arguments = { id = "ask-3", path = file, oldText = "local a = 1\n", newText = "local a = 10\n", title = "a.lua" } } },
+  lock.authToken, false)
+vim.wait(3000, function()
+  return #vim.api.nvim_list_tabpages() == 2
+end)
+vim.cmd("tabnext 2")
+vim.api.nvim_buf_set_lines(vim.api.nvim_get_current_buf(), 0, -1, false, { "local a = 11" })
+vim.cmd("GlutDiffAccept")
+local owners = changed:wait(3000).stdout
+check(owners:find('\\"accepted\\"', 1, true) ~= nil and owners:find("local a = 11\\\\n", 1, true) ~= nil,
+  "accepting a changed right side hands Glut the owner's text, its last line break kept")
+
+-- A rename's file is shown, never taken from the owner: its right side cannot be changed.
+local renamed = post({ jsonrpc = "2.0", id = 6, method = "tools/call", params = { name = "openDiff",
+  arguments = { id = "ask-4", path = file, oldText = "a\n", newText = "b\n", title = "rename · a.lua",
+    editable = false } } }, lock.authToken, false)
+vim.wait(3000, function()
+  return #vim.api.nvim_list_tabpages() == 2
+end)
+vim.cmd("tabnext 2")
+check(not vim.bo[vim.api.nvim_get_current_buf()].modifiable, "a rename's right side cannot be changed")
+vim.cmd("GlutDiffAccept")
+check(renamed:wait(3000).stdout:find('\\"text\\"', 1, true) == nil, "and its accept carries no text")
 
 local refused = post({ jsonrpc = "2.0", id = 4, method = "tools/call", params = { name = "openDiff",
   arguments = { id = "ask-2", path = file, oldText = vim.NIL, newText = "new\n", title = "new" } } },
@@ -124,6 +151,16 @@ vim.wait(3000, function()
 end)
 check(call("closeDiff", { id = "ask-2" }).closed, "Glut closes a diff its own card answered")
 check(refused:wait(3000).stdout:find('\\"closed\\"', 1, true) ~= nil, "and the diff's question answers closed")
+
+-- Glut's word in the editor: shown, its control characters as spaces.
+local told
+local notify = vim.notify
+vim.notify = function(message)
+  told = message
+end
+call("notify", { message = "answer it in Glut\27[2J" })
+vim.notify = notify
+check(told == "glut: answer it in Glut [2J", "Glut's note shows in Neovim as plain words")
 
 -- What a stranger on the port may send: a head no number can be read from, chunks, a body without the token.
 local function raw(bytes)

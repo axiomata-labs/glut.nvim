@@ -91,6 +91,15 @@ local handlers = {
   closeDiff = function(args, respond)
     respond(text({ closed = diff.close(args.id) }))
   end,
+  notify = function(args, respond)
+    if type(args.message) == "string" then
+      -- Glut's words, shown as words: no control character acts in Neovim's message area.
+      -- Bytes below 32 and DEL only, never a part of a character beyond ASCII; cut by characters, not bytes.
+      local message = vim.fn.strcharpart(args.message:gsub("[%z\1-\31\127]", " "), 0, 300)
+      vim.notify("glut: " .. message)
+    end
+    respond(text({}))
+  end,
   changed = function(args, respond)
     for _, path in ipairs(type(args.paths) == "table" and args.paths or {}) do
       local buf = loaded(path)
