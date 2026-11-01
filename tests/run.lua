@@ -119,6 +119,9 @@ check(done.stdout:find('\\"text\\"', 1, true) == nil, "an unchanged right side s
 -- Where Glut runs in this Neovim, its terminal stands beside the diff and keeps the cursor.
 state.buf = vim.api.nvim_create_buf(false, true)
 state.job = vim.fn.jobstart({ "sleep", "60" })
+vim.cmd("vsplit")
+local glut_win = vim.api.nvim_get_current_win()
+vim.api.nvim_win_set_buf(glut_win, state.buf)
 local beside = post({ jsonrpc = "2.0", id = 7, method = "tools/call", params = { name = "openDiff",
   arguments = { id = "ask-5", path = file, oldText = "a\n", newText = "b\n", title = "a.lua" } } },
   lock.authToken, false)
@@ -130,6 +133,8 @@ check(#wins == 3 and vim.api.nvim_get_current_buf() == state.buf and not vim.wo.
   "Glut stands beside the diff with the cursor, no side of the diff itself")
 check(call("closeDiff", { id = "ask-5" }).closed and #vim.api.nvim_list_tabpages() == 1
   and vim.api.nvim_buf_is_valid(state.buf), "its card's answer closes the tab and leaves Glut running")
+check(vim.api.nvim_get_current_win() == glut_win, "and the cursor is back in Glut's own window")
+vim.api.nvim_win_close(glut_win, true)
 beside:wait(3000)
 vim.fn.jobstop(state.job)
 state.job, state.buf = nil, nil

@@ -65,6 +65,15 @@ local function settle(id, outcome)
     local number = vim.api.nvim_tabpage_get_number(diff.tab)
     pcall(vim.cmd, "tabclose " .. number)
   end
+  -- Back where the owner was, typing into Glut again: a terminal window left in Normal mode hands every key to Neovim.
+  if diff.back and vim.api.nvim_win_is_valid(diff.back) then
+    vim.api.nvim_set_current_tabpage(vim.api.nvim_win_get_tabpage(diff.back))
+    vim.api.nvim_set_current_win(diff.back)
+    local terminal = require("glut").running_buffer()
+    if terminal and vim.api.nvim_win_get_buf(diff.back) == terminal then
+      vim.cmd("startinsert")
+    end
+  end
 end
 
 --- Shows the diff `id` and answers through `respond` once the owner decided; `connection` is the one that asked,
@@ -98,9 +107,13 @@ function M.open(args, respond, connection)
   vim.wo.winbar = ("Glut: %s%s  ·  :GlutDiffAccept  ·  :GlutDiffDeny"):format(title:gsub("%%", "%%%%"), hint)
   local glut = require("glut")
   local terminal = glut.running_buffer()
+  local back = before_win
   if terminal then
-    -- Glut beside the diff, where its split stood: the question and the change in one view.
-    local width = math.floor(vim.o.columns * glut.options.split.width)
+    -- Glut beside the diff as wide as where it stood, so its terminal keeps its size: the question and the change
+    -- in one view.
+    local shown = vim.fn.win_findbuf(terminal)[1]
+    local width = shown and vim.api.nvim_win_get_width(shown) or math.floor(vim.o.columns * glut.options.split.width)
+    back = shown or before_win
     local side = glut.options.split.side == "left" and "topleft" or "botright"
     vim.cmd(("noautocmd %s vertical %dsplit"):format(side, width))
     vim.api.nvim_win_set_buf(0, terminal)
@@ -117,6 +130,7 @@ function M.open(args, respond, connection)
     buffers = { left, right },
     right = right,
     new_text = args.newText,
+    back = back,
     respond = respond,
     connection = connection,
   }
