@@ -7,9 +7,19 @@ local uv = vim.uv
 
 local M = {}
 
+--- The home Glut keeps its files in, as Glut finds it: `$GLUT_HOME` where it
+--- names an absolute folder, the user's home otherwise.
+function M.home()
+  local moved = vim.env.GLUT_HOME
+  if moved and moved:sub(1, 1) == "/" then
+    return moved
+  end
+  return uv.os_homedir()
+end
+
 --- The folder the editors leave their files in.
 function M.dir()
-  return vim.fs.joinpath(uv.os_homedir(), ".glut", "ide")
+  return vim.fs.joinpath(M.home(), ".glut", "ide")
 end
 
 --- A token from the system's random source: 16 bytes as 32 hex characters.

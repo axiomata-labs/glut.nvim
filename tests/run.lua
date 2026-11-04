@@ -22,6 +22,16 @@ local file = folder .. "/a.lua"
 vim.fn.writefile({ "local a = 1", "local b = 2", "return a + b" }, file)
 vim.cmd("edit " .. file)
 
+do
+  local lockfile = require("glut.lockfile")
+  local before = vim.env.GLUT_HOME
+  vim.env.GLUT_HOME = "/moved/home"
+  check(lockfile.dir() == "/moved/home/.glut/ide", "a moved GLUT_HOME is where Glut looks, so the editor writes there")
+  vim.env.GLUT_HOME = "relative"
+  check(lockfile.dir() == vim.uv.os_homedir() .. "/.glut/ide", "a relative GLUT_HOME counts for nothing")
+  vim.env.GLUT_HOME = before
+end
+
 local glut = require("glut")
 glut.setup()
 local state = glut._state
