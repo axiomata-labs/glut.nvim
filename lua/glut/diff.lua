@@ -94,9 +94,11 @@ function M.open(args, respond, connection)
   vim.cmd("noautocmd tabnew")
   local tab = vim.api.nvim_get_current_tabpage()
   local left = scratch("glut://" .. id .. "/before/" .. short, old, filetype)
+  local left_win = vim.api.nvim_get_current_win()
   vim.api.nvim_win_set_buf(0, left)
   vim.cmd("diffthis")
-  vim.cmd("noautocmd vsplit")
+  -- Glut's change on the right whatever the owner's 'splitright' says: the file stays where it is read first.
+  vim.cmd("noautocmd rightbelow vsplit")
   -- A rename's files take no text of the owner's: it replaces the old name or nothing.
   local editable = args.editable ~= false
   local right = scratch("glut://" .. id .. "/glut/" .. short, args.newText, filetype, editable)
@@ -120,6 +122,11 @@ function M.open(args, respond, connection)
     -- The split took the diff's window options: Glut's window is no side of the diff.
     vim.cmd("diffoff")
     vim.wo.winbar = ""
+    -- The two sides share what Glut leaves them evenly: its split took its width from the right side alone.
+    local rest = vim.o.columns - width - 2
+    if rest >= 2 then
+      vim.api.nvim_win_set_width(left_win, math.floor(rest / 2))
+    end
     if mode:sub(1, 1) == "t" or vim.api.nvim_win_get_buf(before_win) == terminal then
       vim.cmd("startinsert")
     end

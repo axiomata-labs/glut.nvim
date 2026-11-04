@@ -111,7 +111,8 @@ check(unloaded and unloaded.loaded == false and vim.fn.bufnr(folder .. "/nowhere
 local files = call("openFiles")
 check(files and #files.files == 1 and files.files[1].active and files.files[1].dirty, "the open files are listed")
 
--- A diff answered in Neovim.
+-- A diff answered in Neovim, also where the owner splits to the right.
+vim.o.splitright = true
 local job = post({ jsonrpc = "2.0", id = 3, method = "tools/call", params = { name = "openDiff",
   arguments = { id = "ask-1", path = file, oldText = "local a = 1\n", newText = "local a = 10\n", title = "a.lua" } } },
   lock.authToken, false)
@@ -125,6 +126,7 @@ local done = job:wait(3000)
 check(done.stdout:find('\\"accepted\\"', 1, true) ~= nil and #vim.api.nvim_list_tabpages() == 1,
   "accepting answers Glut and closes the tab")
 check(done.stdout:find('\\"text\\"', 1, true) == nil, "an unchanged right side sends no text of its own")
+vim.o.splitright = false
 
 -- Where Glut runs in this Neovim, its terminal stands beside the diff and keeps the cursor.
 state.buf = vim.api.nvim_create_buf(false, true)
@@ -141,6 +143,12 @@ end)
 local wins = vim.api.nvim_tabpage_list_wins(0)
 check(#wins == 3 and vim.api.nvim_get_current_buf() == state.buf and not vim.wo.diff and vim.wo.winbar == "",
   "Glut stands beside the diff with the cursor, no side of the diff itself")
+local function shows(win, part)
+  return vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win)):find(part, 1, true) ~= nil
+end
+check(shows(wins[1], "/before/") and shows(wins[2], "/glut/"), "the file on the left, Glut's change on the right")
+check(math.abs(vim.api.nvim_win_get_width(wins[1]) - vim.api.nvim_win_get_width(wins[2])) <= 1,
+  "the two sides are as wide as each other")
 check(call("closeDiff", { id = "ask-5" }).closed and #vim.api.nvim_list_tabpages() == 1
   and vim.api.nvim_buf_is_valid(state.buf), "its card's answer closes the tab and leaves Glut running")
 check(vim.api.nvim_get_current_win() == glut_win, "and the cursor is back in Glut's own window")
