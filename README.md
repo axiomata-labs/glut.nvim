@@ -25,7 +25,7 @@ The protocol is Glut's own, in Glut's repository: `docs/editor-protocol.md`.
 
 ```lua
 {
-  "NamorX68/glut.nvim",
+  "axiomata-labs/glut.nvim",
   config = function()
     require("glut").setup()
   end,
